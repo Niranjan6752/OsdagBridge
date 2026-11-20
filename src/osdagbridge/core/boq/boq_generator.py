@@ -89,6 +89,12 @@ def calculate_material_quantities(inputs: dict, outputs: dict) -> dict:
         "crash_barrier_vol_total": "N.A.",
         "crash_barrier_wt_single": "N.A.",
         "crash_barrier_wt_total": "N.A.",
+
+        "end_diaphragm_vol_formula": "N.A.",
+        "end_diaphragm_qty": "N.A.",
+        "end_diaphragm_vol_total": "N.A.",
+        "end_diaphragm_wt_single": "N.A.",
+        "end_diaphragm_wt_total": "N.A.",
     }
     try:
         span_val = inputs.get(KEY_SPAN)
@@ -251,6 +257,11 @@ def calculate_material_quantities(inputs: dict, outputs: dict) -> dict:
             if cb_geom:
                 bracing_len_val = cb_geom.get("diagonal_length_m")
 
+        if bracing_area_val is None:
+            # Design output does not always populate the bracing section
+            # properties; fall back to the section selected in Member Properties.
+            bracing_area_val = _cross_bracing_area_cm2(inputs)
+
         if bracing_area_val is not None and bracing_len_val is not None:
             try:
                 bracing_area = float(bracing_area_val) / 10000.0  # Convert cm² to m²
@@ -360,7 +371,79 @@ def calculate_material_quantities(inputs: dict, outputs: dict) -> dict:
             quantities["crash_barrier_wt_single"] = "N.A."
             quantities["crash_barrier_wt_total"] = "N.A."
 
+        # 7. End Diaphragms (Cu.m) and Weight (MT)
+        quantities.update(_end_diaphragm_quantities(inputs, outputs, spacing))
+
     except Exception as exc:
         logger.warning(f"Error calculating material quantities: {exc}")
 
     return quantities
+
+
+_ED_PREFIX = "member_properties.end_diaphragm_details."
+
+
+def _end_diaphragm_quantities(inputs: dict, outputs: dict, girder_spacing_m: float) -> dict:
+    """Steel quantity of the end diaphragms at both supports.
+
+    One entry exists per end-diaphragm member
+    (``...section_properties.mass.<bay>.<member>`` in kg/m, ``...area...`` in cm^2).
+    Member length per diaphragm:
+
+    * Cross-bracing type: top chord + bottom chord (one girder spacing each)
+      + two diagonals (diagonal length from the cross-bracing geometry);
+    * Rolled / welded beam: a single beam spanning the girder spacing.
+    """
+    if girder_spacing_m <= 0:
+        return {}
+    cb_geom = ((outputs.get("crossbracing_forces_dict") or {}).get("geometry") or {})
+    try:
+        diag_len = float(cb_geom.get("diagonal_length_m") or 0.0)
+    except (TypeError, ValueError):
+        diag_len = 0.0
+
+    mass_prefix = _ED_PREFIX + "section_properties.mass."
+    total_kg, total_m3, count, lengths = 0.0, 0.0, 0, set()
+    for key, mass in inputs.items():
+        if not str(key).startswith(mass_prefix):
+            continue
+        suffix = str(key)[len(mass_prefix):]
+        try:
+            mass_kg_m = float(mass)
+            area_m2 = float(inputs.get(_ED_PREFIX + "section_properties.area." + suffix) or 0.0) / 1e4
+        except (TypeError, ValueError):
+            continue
+        ed_type = str(inputs.get(_ED_PREFIX + "type." + suffix, "")).lower()
+        length = (2 * girder_spacing_m + 2 * diag_len) if ("brac" in ed_type and diag_len > 0) \
+            else girder_spacing_m
+        lengths.add(round(length, 3))
+        total_kg += mass_kg_m * length
+        total_m3 += area_m2 * length
+        count += 1
+
+    if count == 0 or total_kg <= 0:
+        return {}
+    if len(lengths) == 1:
+        formula = "$\\text{mass/m} \\times " + f"{next(iter(lengths)):.2f}" + "\\text{ m}$"
+    else:
+        formula = "$\\sum \\text{mass/m} \\times L$"
+    return {
+        "end_diaphragm_vol_formula": formula,
+        "end_diaphragm_qty": str(count),
+        "end_diaphragm_vol_total": f"{total_m3:.3f}",
+        "end_diaphragm_wt_single": f"{total_kg / count / 1000.0:.3f}",
+        "end_diaphragm_wt_total": f"{total_kg / 1000.0:.2f}",
+    }
+
+
+def _cross_bracing_area_cm2(inputs: dict):
+    """Area (cm^2) of the cross-bracing angle chosen in Member Properties, or None."""
+    prefix = "member_properties.cross_bracing_details.bracing_section_designation."
+    designation = next((v for k, v in inputs.items() if str(k).startswith(prefix) and v), None)
+    if not designation:
+        return None
+    try:
+        from osdagbridge.core.utils.common import get_angle_section_properties
+        return float(get_angle_section_properties(str(designation))["Area"])
+    except Exception:
+        return None
