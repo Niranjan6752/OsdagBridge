@@ -119,6 +119,7 @@ from osdagbridge.core.utils.common import (
 )
 
 from osdagbridge.core.reports.report_utils import _tex
+from osdagbridge.core.reports.styles import FONT, PAGE, latex_style_block
 from .executive_summary import executive_summary
 from .chap1 import ch1_project_info
 from .chap2 import ch2_input_parameters
@@ -147,16 +148,46 @@ logger = logging.getLogger(__name__)
 # PREAMBLE
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _fancy_style(name, pn, jn, rd, rv, with_header=True):
+    """One fancyhdr page style. Spacing and colours come from styles.py.
+
+    The optional '* Software default value' note is stacked *above* the footer
+    rule inside the footer box (no negative \vspace), and PAGE['footskip'] is
+    sized to hold it, so it can never overlap the last body line / table row.
+    """
+    head = (r"""
+  \fancyhead[L]{""" + FONT['header_size'] + " " + pn + r""" $|$ """ + jn + r"""}
+  \fancyhead[R]{""" + FONT['header_size'] + " " + rd + r""" $|$ """ + rv + r"""}
+  \renewcommand{\headrule}{{\color{osBrand}\hrule width\headwidth height 1pt}\vspace{2pt}}""") if with_header \
+        else r"""
+  \renewcommand{\headrulewidth}{0pt}"""
+    return r"""
+\fancypagestyle{""" + name + r"""}{
+  \fancyhf{}""" + head + r"""
+  \fancyfoot[L]{""" + FONT['header_size'] + r""" Osdag $|$ FOSSEE $|$ Indian Institute of Technology Bombay}
+  \fancyfoot[R]{""" + FONT['header_size'] + r""" Page \thepage\ of \pageref{LastPage}}
+  \renewcommand{\footrule}{%
+    \ifbool{hasSDonPage}{%
+      \hbox to \headwidth{""" + FONT['note_size'] + r"""\textit{* Software default value}\hfil}\vspace{2pt}%
+    }{}%
+    {\color{osBrand}\hrule width\headwidth height 1pt}\vspace{3pt}%
+  }
+}"""
+
+
 def preamble(project_name, job_number, report_date, report_version='Rev 0'):
     pn = _tex(project_name)
     jn = _tex(job_number)
     rd = _tex(report_date)
     rv = _tex(report_version)
     return r"""
-\documentclass[12pt,a4paper]{report}
+\documentclass[""" + FONT['base_size'] + "," + PAGE['paper'] + r"""]{report}
 
 % Packages
-\usepackage[a4paper, margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{newunicodechar}
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{amssymb}
@@ -166,23 +197,14 @@ def preamble(project_name, job_number, report_date, report_version='Rev 0'):
 \usepackage{float}
 \usepackage{fancyhdr}
 \usepackage[hidelinks]{hyperref}
-\usepackage{xcolor}
+\usepackage[table]{xcolor}
 \usepackage{setspace}
 \usepackage{enumitem}
 \usepackage{caption}
-
-\captionsetup{
-    labelfont=bf,
-    justification=raggedright,
-    singlelinecheck=false,
-    format=plain
-}
 \usepackage{subcaption}
 \usepackage{multirow}
 \usepackage{colortbl}
 \usepackage{longtable}
-\setlength{\LTleft}{\fill}
-\setlength{\LTright}{\fill}
 \usepackage{titlesec}
 \usepackage{titletoc}
 \usepackage{lastpage}
@@ -190,69 +212,32 @@ def preamble(project_name, job_number, report_date, report_version='Rev 0'):
 \usepackage{etoolbox}
 \usepackage{needspace}
 
+% Unicode glyphs that appear in code-generated values
+\newunicodechar{≤}{\ensuremath{\leq}}
+\newunicodechar{≥}{\ensuremath{\geq}}
+\newunicodechar{²}{\textsuperscript{2}}
+\newunicodechar{³}{\textsuperscript{3}}
+\newunicodechar{°}{\ensuremath{^\circ}}
+\newunicodechar{×}{\ensuremath{\times}}
+\newunicodechar{–}{--}
+\newunicodechar{—}{---}
+
+\captionsetup{
+    labelfont=bf,
+    font=""" + FONT['caption_size'].lstrip('\\') + r""",
+    justification=raggedright,
+    singlelinecheck=false,
+    format=plain
+}
+\captionsetup[longtable]{skip=4pt}
+
 \numberwithin{table}{chapter}
 \numberwithin{figure}{chapter}
-% Table layout and spacing: consistent padding, row height, and longtable pre/post skips
-\setlength{\tabcolsep}{6pt}
-\renewcommand{\arraystretch}{1.12}
-\setlength{\LTpre}{0pt}
-\setlength{\LTpost}{6pt}
-% Table rules (outline thickness) and small extra row height for clarity
-\setlength{\arrayrulewidth}{0.5pt}
-\setlength{\extrarowheight}{0.6pt}
-
-% Prevent tables from overflowing past the page bottom:
-% if fewer than 5 baseline-skips remain, break to the next page first.
-\BeforeBeginEnvironment{table}{\needspace{5\baselineskip}}
-\BeforeBeginEnvironment{longtable}{\needspace{5\baselineskip}}
-
-\definecolor{osdagGreen}{HTML}{91B014}
-
-\fancypagestyle{main}{
-  \fancyhf{}
-  \fancyhead[L]{""" + pn + r""" $|$ """ + jn + r"""}
-  \fancyhead[R]{""" + rd + r""" $|$ """ + rv + r"""}
-  \fancyfoot[L]{Osdag $|$ FOSSEE $|$ Indian Institute of Technology Bombay}
-  \fancyfoot[R]{Page \thepage\ of \pageref{LastPage}}
-  \renewcommand{\headrule}{\color{osdagGreen}\hrule width\headwidth height 1pt \vspace{2pt}}
-  \renewcommand{\footrule}{%
-    \ifbool{hasSDonPage}{%
-      \vspace{-20pt}%
-      \hbox to \headwidth{\textcolor{black}{\footnotesize\textit{* Software default value}}\hfil}%
-      \vspace{4pt}%
-    }{%
-      \vspace{-8pt}%
-    }%
-    \color{osdagGreen}\hrule width\headwidth height 1pt \vspace{6pt}%
-  }
-}
-\fancypagestyle{plain}{
-  \fancyhf{}
-  \fancyhead[L]{""" + pn + r""" $|$ """ + jn + r"""}
-  \fancyhead[R]{""" + rd + r""" $|$ """ + rv + r"""}
-  \fancyfoot[L]{Osdag $|$ FOSSEE $|$ Indian Institute of Technology Bombay}
-  \fancyfoot[R]{Page \thepage\ of \pageref{LastPage}}
-  \renewcommand{\headrule}{\color{osdagGreen}\hrule width\headwidth height 1pt \vspace{2pt}}
-  \renewcommand{\footrule}{%
-    \ifbool{hasSDonPage}{%
-      \vspace{-20pt}%
-      \hbox to \headwidth{\textcolor{black}{\footnotesize\textit{* Software default value}}\hfil}%
-      \vspace{4pt}%
-    }{%
-      \vspace{-8pt}%
-    }%
-    \color{osdagGreen}\hrule width\headwidth height 1pt \vspace{6pt}%
-  }
-}
-\fancypagestyle{firstpage}{
-  \fancyhf{}
-  \renewcommand{\headrulewidth}{0pt}
-  \fancyfoot[L]{Osdag $|$ FOSSEE $|$ Indian Institute of Technology Bombay}
-  \fancyfoot[R]{Page \thepage\ of \pageref{LastPage}}
-  \renewcommand{\footrule}{\vspace{-8pt}\color{osdagGreen}\hrule width\headwidth height 1pt \vspace{6pt}}
-}
+""" + latex_style_block() + r"""
+""" + _fancy_style('main', pn, jn, rd, rv) + _fancy_style('plain', pn, jn, rd, rv) \
+        + _fancy_style('firstpage', pn, jn, rd, rv, with_header=False) + r"""
 \pagestyle{main}
-\setstretch{1.15}
+\setstretch{""" + str(FONT['line_stretch']) + r"""}
 
 % Custom Commands
 \newcommand{\placeholder}[1]{\textit{\textless #1\textgreater}}
@@ -262,11 +247,10 @@ def preamble(project_name, job_number, report_date, report_version='Rev 0'):
 \newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
 
 % Software-default asterisk
-\newcommand{\sdstar}{\textsuperscript{*}}
 \newbool{hasSDonPage}
 \boolfalse{hasSDonPage}
 \newcommand{\markSD}{\global\booltrue{hasSDonPage}}
-\renewcommand{\sdstar}{\textsuperscript{*}\markSD{}}
+\newcommand{\sdstar}{\textsuperscript{*}\markSD{}}
 \AddToHook{shipout/before}{\global\boolfalse{hasSDonPage}}
 
 \title{\Large\textbf{OsdagBridge} \\ \normalsize Open Source Software for Steel Girder Bridge Design \\ \vspace{2cm} \large Design Report}
@@ -837,6 +821,15 @@ def generate_report(payload, request):
     # type: (ReportPayload, ReportRequest) -> ReportResult
     """Compile the full OsdagBridge Design Report to PDF (+ .tex source)."""
     tex_path = None
+    if os.environ.get('OSDAG_DUMP_PAYLOAD'):
+        # Developer aid: snapshot the inputs so scripts/regen_report.py can rebuild
+        # the PDF without re-running the GUI design.
+        try:
+            import pickle
+            with open(os.environ['OSDAG_DUMP_PAYLOAD'], 'wb') as fh:
+                pickle.dump({'payload': payload, 'request': request}, fh)
+        except Exception as exc:
+            logger.warning("Could not dump report payload: %s", exc)
     try:
         # Use OsdagLatexEnv to discover the bundled pdflatex path
         compiler = 'pdflatex'
@@ -924,11 +917,11 @@ def generate_report(payload, request):
             if 'analysis' in secs:
                 doc_parts.append(ch4_analysis(payload.analysis_summary, fig_paths, bridge, span_m))
             if 'design_checks' in secs:
-                doc_parts.append(ch5_design_checks(payload.design_checks, bridge))
+                doc_parts.append(ch5_design_checks(payload.design_checks, bridge, chart_dir=tmp_dir))
             if 'drawings' in secs and payload.options.include_figures:
                 doc_parts.append(ch6_drawings(fig_paths))
 
-            doc_parts.append(ch7_quantities(payload.inputs))
+            doc_parts.append(ch7_quantities(payload.inputs, chart_dir=tmp_dir))
 
             mode = str(payload.inputs.get(KEY_DESIGN_MODE, "Optimized")).strip().lower()
             is_custom = mode in {"custom", "customized"}
@@ -972,6 +965,15 @@ def generate_report(payload, request):
                     )
                 except Exception as exc:
                     logger.warning(f"pdflatex run failed: {exc}")
+
+            if os.environ.get('OSDAG_REPORT_DEBUG'):
+                # Developer aid: keep the LaTeX log and generated charts next to the PDF.
+                tmp_log = os.path.join(tmp_dir, request.file_stem + '.log')
+                if os.path.exists(tmp_log):
+                    shutil.copy2(tmp_log, os.path.join(request.output_dir, request.file_stem + '.log'))
+                if os.path.isdir(os.path.join(tmp_dir, 'charts')):
+                    shutil.copytree(os.path.join(tmp_dir, 'charts'),
+                                    os.path.join(request.output_dir, 'charts'), dirs_exist_ok=True)
 
             if os.path.exists(tmp_tex):
                 shutil.copy2(tmp_tex, tex_path)

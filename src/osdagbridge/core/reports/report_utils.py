@@ -29,7 +29,7 @@ def _render_value(source_dict, key, unit=""):
     val = source_dict.get(key)
     if val in ("", None):
         return ""
-    return _tex(val) + unit
+    return _tex(_num(val)) + unit
 
 
 def get_girder_entries(input_dict):
@@ -113,3 +113,72 @@ def _fig_embed(path, caption, width=r'\textwidth', height=None):
             r'}}')
 
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Longtable builder: repeated headers across page breaks
+# ─────────────────────────────────────────────────────────────────────────────
+def lt_open(colspec, caption=None, header=None, label=None, header_rows=None, tabcolsep=None):
+    """Open a ``longtable`` whose caption and column-header row repeat on every page.
+
+    Produces the four longtable head/foot sections:
+
+    * ``\\endfirsthead``: caption + header row (first page)
+    * ``\\endhead``: "Table n.m (continued)" + header row (every later page)
+    * ``\\endfoot``: "Continued on next page" note (every page but the last)
+    * ``\\endlastfoot``: nothing (the body's own final ``\\hline`` closes the table)
+
+    Parameters
+    ----------
+    colspec : str
+        LaTeX column spec, e.g. ``r"|L{5.5cm}|p{9.6cm}|"``.
+    caption : str, optional
+        Caption text (LaTeX). Omit for an uncaptioned table.
+    header : str, optional
+        One header row *without* the trailing ``\\\\``, e.g.
+        ``r"\\textbf{Parameter} & \\textbf{Value}"``.
+    header_rows : str, optional
+        Raw multi-row header block (rows already terminated with ``\\\\`` and
+        separated by ``\\hline``) for complex headers using ``\\multirow``.
+    label : str, optional
+        ``\\label`` key for cross-referencing.
+    tabcolsep : str, optional
+        Local ``\\tabcolsep`` if the caller overrides it (used for auto-fit).
+
+    Close the table with ``\\end{longtable}`` as usual.
+    """
+    from osdagbridge.core.reports.styles import TABLE, col_count, fit_colspec
+
+    colspec = fit_colspec(colspec, tabcolsep)
+    n = col_count(colspec)
+    if header_rows is not None:
+        head = "\\hline\n" + header_rows.strip() + "\n\\hline\n"
+    elif header is not None:
+        head = ("\\hline\n\\rowcolor{osTableHeader}\n" + header.strip()
+                + " \\\\\n\\hline\n")
+    else:
+        head = "\\hline\n"
+
+    if caption:
+        lbl = ("\\label{" + label + "}") if label else ""
+        first_cap = "\\caption{" + caption + "}" + lbl + "\\\\\n"
+        cont_cap = ("\\caption[]{" + caption + " " + TABLE["continued_cap"] + "}\\\\\n")
+    else:
+        first_cap = cont_cap = ""
+
+    return (
+        "\\begin{longtable}{" + colspec + "}\n"
+        + first_cap + head + "\\endfirsthead\n"
+        + cont_cap + head + "\\endhead\n"
+        + "\\multicolumn{" + str(n) + "}{r}{\\footnotesize " + TABLE["continued_text"]
+        + "} \\\\\n\\endfoot\n"
+        + "\\endlastfoot\n"
+    )
+
+
+def _num(value, nd=3):
+    """Format floats compactly (``12.149999999999999`` -> ``12.15``); pass others through."""
+    if isinstance(value, float):
+        s = f"{value:.{nd}f}".rstrip("0").rstrip(".")
+        return s if s not in ("-0", "") else "0"
+    return value

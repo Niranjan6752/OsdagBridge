@@ -5,10 +5,30 @@ from osdagbridge.core.utils.common import (
     KEY_SD_DEFL_LIVE,
     KEY_SD_DEFL_TOTAL,
 )
-from osdagbridge.core.reports.report_utils import _tex, _fig_embed
+from osdagbridge.core.reports.report_utils import _tex, _fig_embed, lt_open
+from osdagbridge.core.reports.styles import COLS
 
 if TYPE_CHECKING:
     from .report_generator import ReportDataBridge
+
+_DEMAND_HEADER = r"""
+\rowcolor{osTableHeader}
+& \multicolumn{3}{c|}{\textbf{Bending Moment}}
+& \multicolumn{3}{c|}{\textbf{Shear Force}}
+& \multicolumn{2}{c|}{\textbf{Reaction at Supports}}\\
+\cline{2-9}
+\rowcolor{osTableHeader}
+\multirow{-2}{*}{\makecell{\textbf{Load}\\\textbf{Case/}\\\textbf{Comb.}}}
+& \makecell{\textbf{Max}\\\textbf{(kNm)}}
+& \textbf{Girder}
+& \makecell{\textbf{Loc.}\\\textbf{(m)}}
+& \makecell{\textbf{Max}\\\textbf{(kN)}}
+& \textbf{Girder}
+& \makecell{\textbf{Loc.}\\\textbf{(m)}}
+& \makecell{\textbf{Left}}
+& \makecell{\textbf{Right}}\\
+"""
+
 
 def ch4_analysis(asum, fig_paths, bridge: "ReportDataBridge", span_m: float):
     lc_summary  = (asum or {}).get('load_cases', {})
@@ -39,7 +59,7 @@ def ch4_analysis(asum, fig_paths, bridge: "ReportDataBridge", span_m: float):
             + _tex(bm_d.get('sf_girder', '---')) + r" & "
             + _fmt(bm_d.get('sf_location'))      + r" & "
             + _fmt(rxn_d.get('left_kN'))         + r" & "
-            + _fmt(rxn_d.get('right_kN'))        + r" \\[6pt]"
+            + _fmt(rxn_d.get('right_kN'))        + r" \osrow{}"
         )
 
     all_lcs = list(lc_summary.keys()) + [k for k in rxn_summary if k not in lc_summary]
@@ -47,7 +67,7 @@ def ch4_analysis(asum, fig_paths, bridge: "ReportDataBridge", span_m: float):
     merged_body = ("\n\\hline\n").join(
         _merged_row(lc, lc_summary.get(lc), rxn_summary.get(lc))
         for lc in all_lcs
-    ) if all_lcs else r"--- & --- & --- & --- & --- & --- & --- & --- & --- \\[6pt]"
+    ) if all_lcs else r"--- & --- & --- & --- & --- & --- & --- & --- & --- \osrow{}"
 
     _span_m         = float(bridge.input_dict.get(KEY_SPAN, 0) or 0)
     _allow_live_mm  = _span_m * 1000.0 / 800.0
@@ -86,53 +106,7 @@ A grillage model was used for structural analysis. The deck is idealized as a gr
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.25}
 
-\begin{longtable}{|
->{\centering\arraybackslash}p{3.1cm}|
->{\centering\arraybackslash}p{1.7cm}|
->{\centering\arraybackslash}p{1.2cm}|
->{\centering\arraybackslash}p{1.3cm}|
->{\centering\arraybackslash}p{1.7cm}|
->{\centering\arraybackslash}p{1.2cm}|
->{\centering\arraybackslash}p{1.3cm}|
->{\centering\arraybackslash}p{1.6cm}|
->{\centering\arraybackslash}p{1.6cm}|}
-
-\caption{\textbf{Summary of Maximum Demands}}\\
-\hline
-\multirow{2}{*}{\makecell{\textbf{Load}\\\textbf{Case/}\\\textbf{Comb.}}}
-& \multicolumn{3}{c|}{\textbf{Bending Moment}}
-& \multicolumn{3}{c|}{\textbf{Shear Force}}
-& \multicolumn{2}{c|}{\textbf{Reaction at Supports}}\\
-\cline{2-9}
-
-& \makecell{\textbf{Max}\\\textbf{(kNm)}}
-& \textbf{Girder}
-& \makecell{\textbf{Loc.}\\\textbf{(m)}}
-& \makecell{\textbf{Max}\\\textbf{(kN)}}
-& \textbf{Girder}
-& \makecell{\textbf{Loc.}\\\textbf{(m)}}
-& \makecell{\textbf{Left}}
-& \makecell{\textbf{Right }}\\
-\hline
-\endfirsthead
-
-\hline
-\multirow{2}{*}{\makecell{\textbf{Load}\\\textbf{Case/}\\\textbf{Comb.}}}
-& \multicolumn{3}{c|}{\textbf{Bending Moment}}
-& \multicolumn{3}{c|}{\textbf{Shear Force}}
-& \multicolumn{2}{c|}{\textbf{Reaction at Supports}}\\
-\cline{2-9}
-
-& \makecell{\textbf{Max}\\\textbf{(kNm)}}
-& \textbf{Girder}
-& \makecell{\textbf{Loc.}\\\textbf{(m)}}
-& \makecell{\textbf{Max}\\\textbf{(kN)}}
-& \textbf{Girder}
-& \makecell{\textbf{Loc.}\\\textbf{(m)}}
-& \makecell{\textbf{Left}}
-& \makecell{\textbf{Right}}\\
-\hline
-\endhead
+""" + lt_open(r"|>{\centering\arraybackslash}p{3.1cm}|>{\centering\arraybackslash}p{1.7cm}|>{\centering\arraybackslash}p{1.2cm}|>{\centering\arraybackslash}p{1.3cm}|>{\centering\arraybackslash}p{1.7cm}|>{\centering\arraybackslash}p{1.2cm}|>{\centering\arraybackslash}p{1.3cm}|>{\centering\arraybackslash}p{1.6cm}|>{\centering\arraybackslash}p{1.6cm}|", r"\textbf{Summary of Maximum Demands}", header_rows=_DEMAND_HEADER) + r"""
 
 """ + merged_body + r"""
 
@@ -141,36 +115,28 @@ A grillage model was used for structural analysis. The deck is idealized as a gr
 \endgroup
 
 \vspace{1em}
-\begin{longtable}{|>{\centering\arraybackslash}p{5.2cm}|>{\centering\arraybackslash}p{5.2cm}|>{\centering\arraybackslash}p{5.2cm}|}
-\caption{\textbf{Reactions at Supports}}
+""" + lt_open(r"|>{\centering\arraybackslash}p{5.2cm}|>{\centering\arraybackslash}p{5.2cm}|>{\centering\arraybackslash}p{5.2cm}|", r"\textbf{Reactions at Supports}", r"\textbf{Load Case} & \textbf{Left Support (kN)} & \textbf{Right Support (kN)}") + r"""
+& """ + '' + r""" & """ + '' + r""" \osrow{}
 \hline
-\textbf{Load Case} & \textbf{Left Support (kN)} & \textbf{Right Support (kN)} \\[6pt]
+ & """ + '' + r""" & """ + '' + r""" \osrow{}
 \hline
- & """ + '' + r""" & """ + '' + r""" \\[6pt]
-\hline
- & """ + '' + r""" & """ + '' + r""" \\[6pt]
-\hline
- & """ + '' + r""" & """ + '' + r""" \\[6pt]
+ & """ + '' + r""" & """ + '' + r""" \osrow{}
 \hline
 \end{longtable}
 
 \vspace{1em}
-\begin{longtable}{|L{7cm}|p{8.5cm}|}
-\caption{\textbf{Deflection Summary (Live Load \& Total Load)}}
+""" + lt_open(COLS["param_value_wide"], r"\textbf{Deflection Summary (Live Load \& Total Load)}", r"\textbf{parameter} & \textbf{value}") + r"""
+\textnormal{Deflection due to Live Load, $\delta_{LL}$} & """ + _live_str + r""" \osrow{}
 \hline
-\textbf{parameter} & \textbf{value} \\
+\textnormal{Allowable Live Load Deflection ($\Delta_{allow}$)} & """ + _allow_live_str + r""" \osrow{}
 \hline
-\textnormal{Deflection due to Live Load, $\delta_{LL}$} & """ + _live_str + r""" \\[6pt]
+\textnormal{Live Load Deflection Check Status} & """ + _live_status + r""" \osrow{}
 \hline
-\textnormal{Allowable Live Load Deflection ($\Delta_{allow}$)} & """ + _allow_live_str + r""" \\[6pt]
+\textnormal{Deflection due to Total Load, $\delta_{total}$} & """ + _total_str + r""" \osrow{}
 \hline
-\textnormal{Live Load Deflection Check Status} & """ + _live_status + r""" \\[6pt]
+\textnormal{Allowable Total Deflection ($\Delta_{allow}$)} & """ + _allow_total_str + r""" \osrow{}
 \hline
-\textnormal{Deflection due to Total Load, $\delta_{total}$} & """ + _total_str + r""" \\[6pt]
-\hline
-\textnormal{Allowable Total Deflection ($\Delta_{allow}$)} & """ + _allow_total_str + r""" \\[6pt]
-\hline
-\textnormal{Total Load Deflection Check Status} & """ + _total_status + r""" \\[6pt]
+\textnormal{Total Load Deflection Check Status} & """ + _total_status + r""" \osrow{}
 \hline
 \end{longtable}
 

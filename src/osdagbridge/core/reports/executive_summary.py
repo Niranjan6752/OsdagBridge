@@ -2,6 +2,7 @@
 # EXECUTIVE SUMMARY
 # ═══════════════════════════════════════════════════════════════════════════════
 
+from osdagbridge.core.reports.styles import fit_colspec
 from osdagbridge.core.reports.report_utils import _fig_or_placeholder, _render_value, _tex, get_girder_entries
 from osdagbridge.core.utils.common import (
     KEY_CARRIAGEWAY_WIDTH,
@@ -143,6 +144,7 @@ def executive_summary(input_dict, output_dict, fig_paths) -> str:
     # Available width ≈ 15.0cm for A4 with 1in margins; each girder col gets equal share
     girder_col_cm = round(max(1.5, (15.0 - label_col_cm) / n_cols), 1)
     col_spec = '|C{' + str(label_col_cm) + 'cm}|' + '|'.join(['C{' + str(girder_col_cm) + 'cm}'] * n_cols) + '|'
+    col_spec = fit_colspec(col_spec)   # shrink to the text width from styles.PAGE
 
     # Header row
     hdr_cells = ' &\n  '.join([r'\textbf{' + _tex(lbl) + '}' for lbl, _ in labels])
