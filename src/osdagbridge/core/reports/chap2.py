@@ -102,7 +102,7 @@ This section documents all inputs provided to OsdagBridge. User-provided inputs 
 \label{subsec:project-location}
 \begin{tabular}{|L{5.5cm}|L{8.5cm}|}
 \hline
-\textbf{parameter} & \textbf{value} \\
+\textbf{Parameter} & \textbf{Value} \\
 \hline
 \textnormal{Project Location} & """ + _tex(m.project_location) + r""" \\
 \hline
@@ -123,7 +123,7 @@ This section documents all inputs provided to OsdagBridge. User-provided inputs 
 \label{subsec:bridge-geometry}
 \begin{tabular}{|L{5.5cm}|L{8.5cm}|}
 \hline
-\textbf{parameter} & \textbf{value} \\
+\textbf{Parameter} & \textbf{Value} \\
 \hline
 \textnormal{Type of Structure} & """ + (_render_value(input_dict, KEY_STRUCTURE_TYPE)) + r""" \\
 \hline
@@ -146,7 +146,7 @@ This section documents all inputs provided to OsdagBridge. User-provided inputs 
 \label{subsec:material}
 \begin{tabular}{|L{5.5cm}|L{8.5cm}|}
 \hline
-\textbf{parameter} & \textbf{value} \\
+\textbf{Parameter} & \textbf{Value} \\
 \hline
 \textnormal{Girder Steel Grade (IS 2062)} & """ + (_render_value(input_dict, KEY_GIRDER)) + r""" \\
 \hline
@@ -168,7 +168,7 @@ Where the user has modified additional inputs, those values are reported here. W
 
 \vspace{0.8cm}
 
-""" + lt_open(COLS["param_value"], r"\textbf{Typical Section Details}", r"\textbf{parameter} & \textbf{value}") + r"""
+""" + lt_open(COLS["param_value"], r"\textbf{Typical Section Details}", r"\textbf{Parameter} & \textbf{Value}") + r"""
 \textnormal{Overall Bridge Width (m)} & """ + (_render_value(input_dict, KEY_TS_OVERALL_WIDTH)) + r""" \osrow{}
 \hline
 \textnormal{No. of Girders} & """ + (_render_value(input_dict, KEY_TS_NO_OF_GIRDERS)) + r""" \osrow{}
@@ -187,7 +187,7 @@ Where the user has modified additional inputs, those values are reported here. W
 
 \vspace{0.8em}
 
-""" + lt_open(COLS["param_value"], r"\textbf{Components Details}", r"\textbf{parameter} & \textbf{value}") + r"""
+""" + lt_open(COLS["param_value"], r"\textbf{Components Details}", r"\textbf{Parameter} & \textbf{Value}") + r"""
 \textnormal{Crash Barrier Type} & """ + (_render_value(input_dict, KEY_CB_TYPE)) + r""" \osrow{}
 \hline
 \textnormal{Crash Barrier Load (kN/m)} & """ + (_render_value(input_dict, KEY_CB_LOAD)) + r""" \osrow{}
@@ -400,7 +400,7 @@ def _shear_connector_table(input_dict, output_dict=None):
 \vspace{2.2em}
 
 \vspace{0.4em}
-""" + lt_open(COLS["param_value"], r"\textbf{Shear Connector Details}", r"\textbf{parameter} & \textbf{value}") + r"""
+""" + lt_open(COLS["param_value"], r"\textbf{Shear Connector Details}", r"\textbf{Parameter} & \textbf{Value}") + r"""
 \textnormal{Stud Diameter (mm)} & """ + (_render_value(od, KEY_SD_SHEAR_DIAMETER, ' mm')) + r""" \osrow{}
 \hline
 \textnormal{Stud Height (mm)} & """ + (_render_value(od, KEY_SD_SHEAR_HEIGHT, ' mm')) + r""" \osrow{}
@@ -424,7 +424,7 @@ def _safety_factors_table(input_dict):
 \noindent\textit{Note: All values are per IRC 22 Table 1 unless user-modified.}
 
 \vspace{0.4em}
-""" + lt_open(COLS["param_value"], r"\textbf{Partial Safety Factors}", r"\textbf{parameter} & \textbf{value}") + r"""
+""" + lt_open(COLS["param_value"], r"\textbf{Partial Safety Factors}", r"\textbf{Parameter} & \textbf{Value}") + r"""
 \textnormal{$\gamma_{M0}$ (Yielding / Buckling)} & """ + (_render_value(input_dict, KEY_DO_GAMMA_M0)) + r""" \osrow{}
 \hline
 \textnormal{$\gamma_{M1}$ (Ultimate Stress)} & """ + (_render_value(input_dict, KEY_DO_GAMMA_M1)) + r""" \osrow{}

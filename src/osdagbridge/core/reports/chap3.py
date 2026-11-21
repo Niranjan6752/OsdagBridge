@@ -64,13 +64,18 @@ from osdagbridge.core.utils.codes.irc6_2017 import IRC6_2017
 G = 9.81  # kN per tonne
 
 # (input key, display name, impact-factor clause)
+# (input key, display name, impact rule)
+#   "208.2"   Class A / B rule        9 / (13.5 + L)
+#   "208.3W"  wheeled AA / 70R rule   25 % below 23 m span, else 9 / (13.5 + L)
+#   "208.3T"  tracked AA / 70R rule   25 % below 5 m, 10 % from 5 m to 45 m
+#   "208.3"   value used by the analysis (OsdagBridge's cl_208_3_impact_factor)
 _IRC_VEHICLES = [
-    (KEY_LL_IRC_CLASS_A,       "IRC Class A",          "208.2"),
-    (KEY_LL_IRC_70R_WHEELED,   "IRC Class 70R (Wheeled)", "208.3"),
-    (KEY_LL_IRC_70R_TRACKED,   "IRC Class 70R (Tracked)", "208.3"),
-    (KEY_LL_IRC_70R_BOGIE,     "IRC Class 70R (Bogie)",   "208.3"),
-    (KEY_LL_IRC_AA_WHEELED,    "IRC Class AA (Wheeled)",  "208.3"),
-    (KEY_LL_IRC_AA_TRACKED,    "IRC Class AA (Tracked)",  "208.3"),
+    (KEY_LL_IRC_CLASS_A,       "IRC Class A",             "208.2"),
+    (KEY_LL_IRC_70R_WHEELED,   "IRC Class 70R (Wheeled)", "208.3W"),
+    (KEY_LL_IRC_70R_TRACKED,   "IRC Class 70R (Tracked)", "208.3T"),
+    (KEY_LL_IRC_70R_BOGIE,     "IRC Class 70R (Bogie)",   "208.3W"),
+    (KEY_LL_IRC_AA_WHEELED,    "IRC Class AA (Wheeled)",  "208.3W"),
+    (KEY_LL_IRC_AA_TRACKED,    "IRC Class AA (Tracked)",  "208.3T"),
     (KEY_LL_IRC_CLASS_SV,      "Special Vehicle (SV)",    "208.3"),
     (KEY_LL_IRC_CLASS_FATIGUE, "Fatigue Vehicle",         "208.3"),
 ]
@@ -100,13 +105,40 @@ def _gross_load_kN(key):
     return None
 
 
-def _impact_factor(clause, span_m):
+def _impact_factor(rule, span_m):
+    """1 + IM for one vehicle (IRC:6-2017 Cl. 208.2 / 208.3).
+
+    Cl. 208.3 distinguishes wheeled and tracked vehicles. The shared
+    ``IRC6_2017.cl_208_3_impact_factor`` picks the branch from a module
+    constant rather than the vehicle, so the report applies the clause
+    per vehicle here.
+    """
     from osdagbridge.core.utils.codes.irc6_2017 import IRC6_2017 as I
+    L = min(span_m, 45.0)
     try:
-        im = I.cl_208_2_impact_factor(span_m) if clause == "208.2" else I.cl_208_3_impact_factor(span_m)
-        return 1.0 + im
+        if rule == "208.2":
+            im = I.cl_208_2_impact_factor(span_m)
+        elif rule == "208.3W":
+            im = 0.25 if L < 23.0 else 9.0 / (13.5 + L)
+        elif rule == "208.3T":
+            im = 0.25 if L < 5.0 else 0.10
+        else:
+            im = I.cl_208_3_impact_factor(span_m)
+        return 1.0 + round(im, 3)
     except Exception:
         return None
+
+
+def _wind_force_rows(input_dict):
+    """Wind force rows, only for forces the analysis actually stored (no blank cells)."""
+    rows = []
+    for label, key in (("Transverse Wind Force", KEY_WL_TRANSVERSE_WIND_FORCE),
+                       ("Longitudinal Wind Force", KEY_WL_LONGITUDINAL_WIND_FORCE),
+                       ("Vertical Wind Force", KEY_WL_VERTICAL_WIND_FORCE)):
+        val = _render_value(input_dict, key, " kN")
+        if val:
+            rows.append("\\textnormal{" + label + "} & " + val + " " + ROW + "\n\\hline\n")
+    return "".join(rows)
 
 
 def _fmt(v, nd=2):
@@ -150,7 +182,7 @@ def vehicular_live_load_table(input_dict, braking_total_str):
         braking = 0.20 * gross if gross is not None else None   # Cl. 211.2: 20 % of train load
         rows.append(
             _tex(name) + " & " + _fmt(gross, 1) + " & " + _fmt(ifac, 3)
-            + " & " + (("Cl. " + clause) if clause else "---")
+            + " & " + (("Cl. " + clause.rstrip("WT")) if clause else "---")
             + " & " + _fmt(braking, 1) + r" & N.A.$^{\dagger}$ " + ROW + "\n\\hline"
         )
     if not rows:
@@ -160,15 +192,19 @@ def vehicular_live_load_table(input_dict, braking_total_str):
     header = (r"\textbf{Vehicle Class} & \textbf{Gross Load (kN)} & \textbf{Impact Factor (1+IM)}"
               r" & \textbf{IRC:6 Clause} & \textbf{Braking, 20\%W (kN)} & \textbf{Centrifugal (kN)}")
     span_note = (f"span $L$ = {span_m:g} m" if span_m else "span not available")
+    # Governing braking force across all design lanes: only when the lane data exists.
+    governing = ""
+    if braking_total_str and braking_total_str not in ("N/A", "N.A."):
+        governing = (r"\multicolumn{4}{|l|}{\textbf{Governing braking force, all design lanes}}"
+                     r" & \multicolumn{2}{c|}{\textbf{" + _tex(braking_total_str) + "}} " + ROW + "\n\\hline\n")
     return (
         lt_open(spec, r"\textbf{Vehicular Live Load (LL)}", header, label="tab:vehicular-ll")
         + "\n".join(rows) + "\n"
-        + r"\multicolumn{4}{|l|}{\textbf{Governing braking force, all design lanes}}"
-        + r" & \multicolumn{2}{c|}{\textbf{" + _tex(braking_total_str or "N/A") + "}} " + ROW + "\n\\hline\n"
+        + governing
         + "\\end{longtable}\n"
         + r"\noindent{\footnotesize\textit{Impact factor per IRC:6 Cl. 208 for "
-        + span_note + r". Braking per vehicle = 20\% of gross load (Cl. 211.2, single lane); "
-        r"the governing value above accounts for the number of design lanes. "
+        + span_note + r". Braking per vehicle = 20\% of gross load (Cl. 211.2, first train in one lane); "
+        r"the governing value for multiple lanes, where shown, follows Cl. 211.2. "
         r"$^{\dagger}$Centrifugal force (Cl. 212) applies to curved bridges only; this bridge is straight in plan.}}"
         + "\n\n\\vspace{0.8em}\n"
     )
@@ -351,7 +387,7 @@ def ch3_loads(input_dict):
 This section summarizes all loads applied to the bridge and the load combinations considered for analysis and design.
 
 \vspace{1em}
-""" + lt_open(COLS["param_value"], r"\textbf{Dead Load -- Self Weight}", r"\textbf{parameter} & \textbf{value}") + r"""
+""" + lt_open(COLS["param_value"], r"\textbf{Dead Load -- Self Weight}", r"\textbf{Parameter} & \textbf{Value}") + r"""
 \textnormal{Steel Self-Weight Applied} & """ + (_render_value(input_dict, KEY_MATERIAL_GIRDER_DENSITY, ' kN/m\\textsuperscript{3}')) + r""" \osrow{}
 \hline
 \textnormal{Concrete Deck Weight} & """ + (_render_value(input_dict, KEY_MATERIAL_DECK_DENSITY, ' kN/m\\textsuperscript{3}')) + r""" \osrow{}
@@ -361,7 +397,7 @@ This section summarizes all loads applied to the bridge and the load combination
 \end{longtable}
 
 \vspace{1em}
-""" + lt_open(COLS["param_value"], r"\textbf{Dead Load for Surfacing (DW)}", r"\textbf{parameter} & \textbf{value}") + r"""
+""" + lt_open(COLS["param_value"], r"\textbf{Dead Load for Surfacing (DW)}", r"\textbf{Parameter} & \textbf{Value}") + r"""
 \textnormal{Wearing Course Load} & """ + (_render_value(input_dict, KEY_WC_MATERIAL)) + r""" x """ + (_render_value(input_dict, KEY_WC_THICKNESS)) + r""" \osrow{}
 \hline
 \textnormal{Additional SIDL (Crash Barrier)} & """ + (_render_value(input_dict, KEY_CB_LOAD)) + r""" kN/m per barrier \osrow{}
@@ -374,27 +410,21 @@ This section summarizes all loads applied to the bridge and the load combination
 """ + vehicular_live_load_table(input_dict, braking_force_str) + footway_live_load_table(input_dict, fp_str) + r"""
 
 \vspace{1em}
-""" + lt_open(COLS["param_value"], r"\textbf{Wind Load (WL) --- per IRC 6}", r"\textbf{parameter} & \textbf{value}") + r"""
+""" + lt_open(COLS["param_value"], r"\textbf{Wind Load (WL) --- per IRC 6}", r"\textbf{Parameter} & \textbf{Value}") + r"""
 \textnormal{Basic Wind Speed, Vb} & """ + (_render_value(input_dict,'wind_speed', ' m/s')) + r""" [from Project Location] \osrow{}
 \hline
 \textnormal{Terrain Type} & """ + (_render_value(input_dict, KEY_WL_TERRAIN_TYPE)) + r""" \osrow{}
 \hline
 \textnormal{Average Exposed Height, H (m)} & """ + (_render_value(input_dict, KEY_WL_AVG_EXPOSED_HEIGHT, ' m')) + r""" \osrow{}
 \hline
-\textnormal{Hourly Mean Wind Speed, Vz} & """ + (_render_value(input_dict, KEY_WL_HOURLY_MEAN_WIND, ' m/s')) + r""" \osrow{}
+\textnormal{Hourly Mean Wind Speed, Vz} & """ + _tex(vz_str) + r""" (IRC:6 Table 12) \osrow{}
 \hline
-\textnormal{Hourly Wind Pressure, Pz} & """ + (_render_value(input_dict, KEY_WL_HOURLY_WIND_PRESSURE, ' N/m\\textsuperscript{2}')) + r""" \osrow{}
+\textnormal{Hourly Wind Pressure, Pz} & """ + _tex(pz_str) + r""" (IRC:6 Table 12) \osrow{}
 \hline
-\textnormal{Transverse Wind Force} & """ + (_render_value(input_dict, KEY_WL_TRANSVERSE_WIND_FORCE, ' kN')) + r""" \osrow{}
-\hline
-\textnormal{Longitudinal Wind Force} & """ + (_render_value(input_dict, KEY_WL_LONGITUDINAL_WIND_FORCE, ' kN')) + r""" \osrow{}
-\hline
-\textnormal{Vertical Wind Force} & """ + (_render_value(input_dict, KEY_WL_VERTICAL_WIND_FORCE, ' kN')) + r""" \osrow{}
-\hline
-\end{longtable}
+""" + _wind_force_rows(input_dict) + r"""\end{longtable}
 
 \vspace{1em}
-""" + lt_open(COLS["param_value"], r"\textbf{Earthquake Load (EL) --- per IRC 6}", r"\textbf{parameter} & \textbf{value}") + r"""
+""" + lt_open(COLS["param_value"], r"\textbf{Earthquake Load (EL) --- per IRC 6}", r"\textbf{Parameter} & \textbf{Value}") + r"""
 \textnormal{Seismic Zone} & """ + (_render_value(input_dict,'seismic_zone')) + r""" [from Project Location] \osrow{}
 \hline
 \textnormal{Zone Factor, Z} & """ + (_render_value(input_dict, KEY_SL_ZONE_FACTOR)) + r""" \osrow{}
@@ -416,7 +446,7 @@ This section summarizes all loads applied to the bridge and the load combination
 \end{longtable}
 
 \vspace{1em}
-""" + lt_open(COLS["param_value"], r"\textbf{Temperature Load (TL) --- per IRC 6}", r"\textbf{parameter} & \textbf{value}") + r"""
+""" + lt_open(COLS["param_value"], r"\textbf{Temperature Load (TL) --- per IRC 6}", r"\textbf{Parameter} & \textbf{Value}") + r"""
 \textnormal{Maximum Shade Temperature} & """ + (_render_value(input_dict,'shade_temp_max')) + r""" $^\circ$C \osrow{}
 \hline
 \textnormal{Minimum Shade Temperature} & """ + (_render_value(input_dict,'shade_temp_min')) + r""" $^\circ$C \osrow{}
