@@ -30,13 +30,13 @@ import re
 # last line of body text or the last row of a table.
 PAGE = {
     "paper":      "a4paper",
-    "left":       "25mm",
-    "right":      "25mm",
-    "top":        "28mm",
-    "bottom":     "30mm",
-    "headheight": "15pt",
-    "headsep":    "8mm",
-    "footskip":   "14mm",
+    "left":       "1in",
+    "right":      "1in",
+    "top":        "1in",      # same text block as the original report, so
+    "bottom":     "1in",      # full-width CAD figures still fit two per page
+    "headheight": "17pt",
+    "headsep":    "6mm",
+    "footskip":   "12mm",     # room for the software-default note above the rule
 }
 
 # ── Typography ───────────────────────────────────────────────────────────────
