@@ -120,6 +120,10 @@ from osdagbridge.core.utils.common import (
 
 from osdagbridge.core.reports.report_utils import _tex
 from osdagbridge.core.reports.styles import FONT, PAGE, latex_style_block
+from osdagbridge.core.reports.charts import trim_background
+
+# CAD screenshots (3D viewer captures) whose empty background is trimmed.
+_CAD_FIGURES = {'girder_top', 'cross_section', 'final_geometry'}
 from .executive_summary import executive_summary
 from .chap1 import ch1_project_info
 from .chap2 import ch2_input_parameters
@@ -866,6 +870,8 @@ def generate_report(payload, request):
                     p = os.path.join(tmp_images, attr + '.png')
                     with open(p, 'wb') as fh:
                         fh.write(img_bytes)
+                    if attr in _CAD_FIGURES:
+                        trim_background(p)      # drop the empty viewer background
                     fig_paths[attr] = p.replace('\\', '/')
             payload.figure_data.clear()  # bytes no longer needed — free RAM now
 

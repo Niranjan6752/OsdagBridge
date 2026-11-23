@@ -252,3 +252,41 @@ def chart_figure(rel_path: Optional[str], caption: str, label: str) -> str:
         "\\caption{" + caption + "}\\label{" + label + "}\n"
         "\\end{figure}\n"
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CAD screenshot trimming
+# ─────────────────────────────────────────────────────────────────────────────
+def trim_background(path: str, tol: int = 18, pad_frac: float = 0.04) -> bool:
+    """Crop the empty viewer background around a CAD capture, in place.
+
+    The OCC viewer paints a vertical grey gradient, so a background row is
+    uniform left to right and a background column matches the image's own
+    left edge. Rows/columns that differ from that background by more than
+    ``tol`` (0-255) hold the model. Returns True if the image was cropped.
+    Never raises: on any problem the image is left as it is.
+    """
+    try:
+        import numpy as np
+        from PIL import Image
+        im = Image.open(path).convert("RGB")
+        a = np.asarray(im).astype(np.int16)
+        h, w, _ = a.shape
+        if h < 50 or w < 50:
+            return False
+        edge = a[:, :1, :]                                   # background profile (left edge)
+        col_diff = (np.abs(a - edge).max(axis=2) > tol).sum(axis=0)
+        row_diff = (np.abs(a - a[:, :1, :]).max(axis=2) > tol).sum(axis=1)
+        cols = np.where(col_diff > max(2, h // 200))[0]
+        rows = np.where(row_diff > max(2, w // 200))[0]
+        if cols.size == 0 or rows.size == 0:
+            return False
+        pad_x, pad_y = int(w * pad_frac), int(h * pad_frac)
+        x0, x1 = max(cols[0] - pad_x, 0), min(cols[-1] + pad_x + 1, w)
+        y0, y1 = max(rows[0] - pad_y, 0), min(rows[-1] + pad_y + 1, h)
+        if (x1 - x0) * (y1 - y0) > 0.9 * w * h:              # nothing worth trimming
+            return False
+        im.crop((x0, y0, x1, y1)).save(path)
+        return True
+    except Exception:
+        return False

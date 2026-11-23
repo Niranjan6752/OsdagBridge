@@ -88,6 +88,14 @@ COLS = {
     "param_value_wide": r"|L{7cm}|p{8.1cm}|",
 }
 
+# ── Figures (CAD screenshots, analysis plots) ────────────────────────────────
+# CAD captures take the shape of the viewer window, so a figure is limited in
+# BOTH width and height (aspect ratio kept). 0.40 textheight lets two figures
+# and their captions share a page whatever the capture's shape.
+FIGURE = {
+    "max_height": r"0.40\textheight",
+}
+
 # ── Charts (matplotlib) ──────────────────────────────────────────────────────
 CHART = {
     "dpi":          200,

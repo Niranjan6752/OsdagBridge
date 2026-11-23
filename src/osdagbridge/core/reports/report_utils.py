@@ -73,6 +73,12 @@ def get_girder_entries(input_dict):
     return entries
 
 
+def _fig_size(width, height=None):
+    """includegraphics options: fit inside width x max height, keeping the aspect ratio."""
+    from osdagbridge.core.reports.styles import FIGURE
+    return 'width=' + width + ',height=' + (height or FIGURE['max_height']) + ',keepaspectratio'
+
+
 def _fig_or_placeholder(path, caption, width=r'0.9\textwidth'):
     """Embed figure if path is provided (file already copied to assets), else show placeholder box.
     path is the relative path as pdflatex will see it (e.g. 'assets/plan.png').
@@ -81,7 +87,7 @@ def _fig_or_placeholder(path, caption, width=r'0.9\textwidth'):
         p = path.replace('\\', '/')
         return (r'\begin{figure}[H]' + '\n'
                 r'\centering' + '\n'
-                r'\includegraphics[width=' + width + ']{' + p + '}\n'
+                r'\includegraphics[' + _fig_size(width) + ']{' + p + '}\n'
                 r'\caption*{' + caption + '}\n'
                 r'\end{figure}')
     return (r'\begin{figure}[H]' + '\n'
@@ -96,9 +102,7 @@ def _fig_embed(path, caption, width=r'\textwidth', height=None):
     """Embed a real figure when path is provided (already copied); otherwise use an fbox placeholder."""
     if path:
         p = path.replace('\\', '/')
-        opts = 'width=' + width
-        if height:
-            opts += ',height=' + height + ',keepaspectratio'
+        opts = _fig_size(width, height)
         return (r'\begin{figure}[H]' + '\n'
                 r'\vspace{-0.5em}' + '\n'
                 r'\centering' + '\n'
